@@ -70,7 +70,7 @@ namespace SimplexMethod
 
                 DisplayInitialSystem(constraints, b, c);
 
-                var result = SolveSimplex(constraints, b, c);
+                var result = SolveSimplex(constraints, b, c, null);
 
                 DisplaySolution(result.Item1, result.Item2);
             }
@@ -202,8 +202,10 @@ namespace SimplexMethod
             Answer.Children.Add(profitCell);
         }
 
-        private Tuple<double[], double> SolveSimplex(double[,] constraints, double[] b, double[] c)
+        private Tuple<double[], double> SolveSimplex(double[,] constraints, double[] b, double[] c, string logPath)
         {
+            var log = new StringBuilder();
+
             int rows = constraints.GetLength(0);
             int cols = constraints.GetLength(1);
 
@@ -223,8 +225,14 @@ namespace SimplexMethod
                 table[rows, j] = -c[j];
             }
 
+            int iteration = 0;
             while (true)
             {
+                if (!string.IsNullOrEmpty(logPath))
+                {
+                    log.AppendLine($"Iteration {iteration++}");
+                    log.AppendLine(TableToString(table));
+                }
                 int pivotCol = -1;
                 double minValue = 0;
                 for (int j = 0; j < cols + rows; j++)
@@ -237,9 +245,7 @@ namespace SimplexMethod
                 }
 
                 if (pivotCol == -1)
-                {
                     break;
-                }
 
                 int pivotRow = -1;
                 double minRatio = double.MaxValue;
@@ -257,9 +263,7 @@ namespace SimplexMethod
                 }
 
                 if (pivotRow == -1)
-                {
                     throw new Exception("Задача не имеет конечного решения.");
-                }
 
                 double pivotValue = table[pivotRow, pivotCol];
                 for (int j = 0; j < cols + rows + 1; j++)
@@ -279,6 +283,11 @@ namespace SimplexMethod
                     }
                 }
             }
+            if (!string.IsNullOrEmpty(logPath))
+            {
+                log.AppendLine("Final Table:");
+                log.AppendLine(TableToString(table));
+            }
 
             double[] solution = new double[cols];
             for (int i = 0; i < cols; i++)
@@ -294,6 +303,13 @@ namespace SimplexMethod
             }
 
             double maxProfit = table[rows, cols + rows];
+            if (!string.IsNullOrEmpty(logPath))
+            {
+                log.AppendLine($"Answer: {string.Join(", ", solution.Select(x => x.ToString("F2")))}");
+                log.AppendLine($"Max Profit: {maxProfit:F2}");
+            }
+
+            System.IO.File.WriteAllText(logPath, log.ToString());
             return Tuple.Create(solution, maxProfit);
         }
 
@@ -663,7 +679,7 @@ namespace SimplexMethod
             DisplayInitialSystem(constraints, b, c);
 
             string logPath = "solution_log.txt";
-            var result = SolveSimplexWithLog(constraints, b, c, logPath);
+            var result = SolveSimplex(constraints, b, c, logPath);
 
             DisplaySolution(result.Item1, result.Item2);
             MessageBox.Show($"Решение записано в файл: {logPath}");
@@ -674,109 +690,6 @@ namespace SimplexMethod
             }
         }
 
-        private Tuple<double[], double> SolveSimplexWithLog(double[,] constraints, double[] b, double[] c, string logPath)
-        {
-            var log = new StringBuilder();
-
-            int rows = constraints.GetLength(0);
-            int cols = constraints.GetLength(1);
-
-            double[,] table = new double[rows + 1, cols + rows + 1];
-            for (int i = 0; i < rows - 1; i++)
-            {
-                for (int j = 0; j < cols; j++)
-                {
-                    table[i, j] = constraints[i, j];
-                }
-                table[i, cols + i] = 1;
-                table[i, cols + rows] = b[i];
-            }
-
-            for (int j = 0; j < cols - 1; j++)
-            {
-                table[rows, j] = -c[j];
-            }
-
-            int iteration = 0;
-            while (true)
-            {
-                log.AppendLine($"Iteration {iteration++}");
-                log.AppendLine(TableToString(table));
-
-                int pivotCol = -1;
-                double minValue = 0;
-                for (int j = 0; j < cols + rows; j++)
-                {
-                    if (table[rows, j] < minValue)
-                    {
-                        minValue = table[rows, j];
-                        pivotCol = j;
-                    }
-                }
-
-                if (pivotCol == -1)
-                    break;
-
-                int pivotRow = -1;
-                double minRatio = double.MaxValue;
-                for (int i = 0; i < rows; i++)
-                {
-                    if (table[i, pivotCol] > 0)
-                    {
-                        double ratio = table[i, cols + rows] / table[i, pivotCol];
-                        if (ratio < minRatio)
-                        {
-                            minRatio = ratio;
-                            pivotRow = i;
-                        }
-                    }
-                }
-
-                if (pivotRow == -1)
-                    throw new Exception("Задача не имеет конечного решения.");
-
-                double pivotValue = table[pivotRow, pivotCol];
-                for (int j = 0; j < cols + rows + 1; j++)
-                {
-                    table[pivotRow, j] /= pivotValue;
-                }
-
-                for (int i = 0; i < rows + 1; i++)
-                {
-                    if (i != pivotRow)
-                    {
-                        double factor = table[i, pivotCol];
-                        for (int j = 0; j < cols + rows + 1; j++)
-                        {
-                            table[i, j] -= factor * table[pivotRow, j];
-                        }
-                    }
-                }
-            }
-
-            log.AppendLine("Final Table:");
-            log.AppendLine(TableToString(table));
-
-            double[] solution = new double[cols];
-            for (int i = 0; i < cols; i++)
-            {
-                for (int j = 0; j < rows; j++)
-                {
-                    if (table[j, i] == 1)
-                    {
-                        solution[i] = table[j, cols + rows];
-                        break;
-                    }
-                }
-            }
-
-            double maxProfit = table[rows, cols + rows];
-            log.AppendLine($"Answer: {string.Join(", ", solution.Select(x => x.ToString("F2")))}");
-            log.AppendLine($"Max Profit: {maxProfit:F2}");
-
-            System.IO.File.WriteAllText(logPath, log.ToString());
-            return Tuple.Create(solution, maxProfit);
-        }
 
         private string TableToString(double[,] table)
         {
